@@ -1,2 +1,0 @@
-# CatatanKeuanganyk
-website catatan keuangan
