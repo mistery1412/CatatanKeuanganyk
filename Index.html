@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pencatat Keuangan Sync Sheets</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; margin: 0; min-height: 100vh; }
+    .container { width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 20px; }
+    .card { background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h2, h3 { margin-top: 0; color: #333; }
+    
+    .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #ccc; }
+    .stat-card.saldo { border-color: #2196F3; }
+    .stat-card.pemasukan { border-color: #4CAF50; }
+    .stat-card.pengeluaran { border-color: #f44336; }
+    .stat-card h4 { margin: 0 0 5px 0; color: #666; font-size: 14px; }
+    .stat-card p { margin: 0; font-size: 20px; font-weight: bold; color: #333; }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; color: #555; }
+    input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    input:focus, select:focus, textarea:focus { border-color: #4CAF50; outline: none; }
+    button { width: 100%; padding: 12px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; margin-top: 10px; }
+    button:hover { background-color: #45a049; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    
+    .table-responsive { overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+    th, td { padding: 12px; border-bottom: 1px solid #eee; }
+    th { background-color: #f8f9fa; color: #333; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; }
+    .badge.Pemasukan { background-color: #4CAF50; }
+    .badge.Pengeluaran { background-color: #f44336; }
+    #status { margin-top: 10px; text-align: center; font-weight: bold; }
+    .success { color: #2e7d32; }
+    .error { color: #c62828; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="dashboard">
+      <div class="stat-card saldo">
+        <h4>Total Saldo</h4>
+        <p id="txtSaldo">Rp 0</p>
+      </div>
+      <div class="stat-card pemasukan">
+        <h4>Total Pemasukan</h4>
+        <p id="txtPemasukan">Rp 0</p>
+      </div>
+      <div class="stat-card pengeluaran">
+        <h4>Total Pengeluaran</h4>
+        <p id="txtPengeluaran">Rp 0</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Catat Transaksi</h2>
+      <form id="financeForm">
+        <div class="form-group">
+          <label for="tanggal">Tanggal</label>
+          <input type="date" id="tanggal" required>
+        </div>
+        <div class="form-group">
+          <label for="jenis">Jenis Transaksi</label>
+          <select id="jenis" required>
+            <option value="Pengeluaran">Pengeluaran</option>
+            <option value="Pemasukan">Pemasukan</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="kategori">Kategori</label>
+          <input type="text" id="kategori" placeholder="Contoh: Makanan, Gaji, Transport" required>
+        </div>
+        <div class="form-group">
+          <label for="jumlah">Jumlah (Rp)</label>
+          <input type="number" id="jumlah" min="1" placeholder="100000" required>
+        </div>
+        <div class="form-group">
+          <label for="keterangan">Keterangan (Opsional)</label>
+          <textarea id="keterangan" rows="2" placeholder="Catatan tambahan..."></textarea>
+        </div>
+        <button type="submit" id="submitBtn">Simpan ke Spreadsheet</button>
+      </form>
+      <div id="status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Riwayat Transaksi</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Jenis</th>
+              <th>Kategori</th>
+              <th>Jumlah</th>
+              <th>Keterangan</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="5" style="text-align: center;">Memuat data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Ganti teks di bawah ini dengan URL Web App dari Langkah 3
+    const SCRIPT_URL = "URL_WEB_APP_ANDA_DI_SINI";
+
+    document.getElementById('tanggal').valueAsDate = new Date();
+
+    function formatRupiah(angka) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(angka);
+    }
+
+    async function loadData() {
+      try {
+        const response = await fetch(SCRIPT_URL);
+        const result = await response.json();
+        
+        if (result.status === "success") {
+          document.getElementById('txtSaldo').innerText = formatRupiah(result.saldo);
+          document.getElementById('txtPemasukan').innerText = formatRupiah(result.pemasukan);
+          document.getElementById('txtPengeluaran').innerText = formatRupiah(result.pengeluaran);
+
+          const tableBody = document.getElementById('tableBody');
+          tableBody.innerHTML = "";
+
+          if (result.data.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Belum ada transaksi.</td></tr>`;
+            return;
+          }
+
+          result.data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.tanggal}</td>
+              <td><span class="badge ${item.jenis}">${item.jenis}</span></td>
+              <td>${item.kategori}</td>
+              <td>${formatRupiah(item.jumlah)}</td>
+              <td>${item.keterangan || '-'}</td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error("Gagal memuat data:", err);
+      }
+    }
+
+    document.getElementById('financeForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      const statusDiv = document.getElementById('status');
+      
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Menyimpan...";
+      statusDiv.innerText = "";
+
+      const payload = {
+        tanggal: document.getElementById('tanggal').value,
+        jenis: document.getElementById('jenis').value,
+        kategori: document.getElementById('kategori').value,
+        jumlah: document.getElementById('jumlah').value,
+        keterangan: document.getElementById('keterangan').value
+      };
+
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        statusDiv.className = "success";
+        statusDiv.innerText = "Transaksimu berhasil disimpan!";
+        document.getElementById('financeForm').reset();
+        document.getElementById('tanggal').valueAsDate = new Date();
+        
+        setTimeout(loadData, 2000);
+      } catch (err) {
+        statusDiv.className = "error";
+        statusDiv.innerText = "Gagal menyimpan data. Coba lagi.";
+        console.error(err);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Simpan ke Spreadsheet";
+      }
+    });
+
+    loadData();
+  </script>
+</body>
+</html>
